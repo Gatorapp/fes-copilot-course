@@ -146,26 +146,25 @@ function PromiseBasedComponent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // This uses .then() chains - convert it to async/await!
-  const fetchUserData = () => {
+  // This now uses async/await - converted from .then() chains!
+  const fetchUserData = async () => {
     setLoading(true)
     setError(null)
 
-    fetch('https://jsonplaceholder.typicode.com/users/1')
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Network response was not ok')
-        }
-        return response.json()
-      })
-      .then(userData => {
-        setData(userData)
-        setLoading(false)
-      })
-      .catch(err => {
-        setError(err.message)
-        setLoading(false)
-      })
+    try {
+      const response = await fetch('https://jsonplaceholder.typicode.com/users/1')
+      
+      if (!response.ok) {
+        throw new Error('Network response was not ok')
+      }
+      
+      const userData = await response.json()
+      setData(userData)
+      setLoading(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+      setLoading(false)
+    }
   }
 
   return (
@@ -252,6 +251,7 @@ function InaccessibleForm() {
         <div style={{ marginTop: '12px' }}>
           <button
             type="submit"
+            aria-label="Submit Form"
             style={{
               background: '#3B82F6',
               color: 'white',
@@ -282,27 +282,53 @@ function MessyComponent() {
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState('name')
 
-  // This is too long and does too many things - break it down!
-  const processedItems = items
-    .filter(item => {
-      if (filter === '') return true
-      return item.category.toLowerCase() === filter.toLowerCase()
-    })
-    .filter(item => item.inStock)
-    .sort((a, b) => {
-      if (sort === 'name') {
+  type Item = (typeof items)[number]
+
+  // Helper function to filter items by category
+  const filterByCategory = (itemsToFilter: Item[], categoryFilter: string) => {
+    if (categoryFilter === '') return itemsToFilter
+    return itemsToFilter.filter(item => 
+      item.category.toLowerCase() === categoryFilter.toLowerCase()
+    )
+  }
+
+  // Helper function to filter only in-stock items
+  const filterInStockItems = (itemsToFilter: Item[]) => {
+    return itemsToFilter.filter(item => item.inStock)
+  }
+
+  // Helper function to sort items by the selected criteria
+  const sortItems = (itemsToFilter: Item[], sortBy: string) => {
+    return itemsToFilter.sort((a, b) => {
+      if (sortBy === 'name') {
         return a.name.localeCompare(b.name)
-      } else if (sort === 'price') {
+      } else if (sortBy === 'price') {
         return a.price - b.price
       }
       return 0
     })
-    .map(item => {
+  }
+
+  // Helper function to add pricing information (discounts, formatting, sale status)
+  // Applies 10% discount to items over $2, formats prices, and marks sale items
+  const addPricingInfo = (itemsToFilter: Item[]) => {
+    return itemsToFilter.map(item => {
       const discountedPrice = item.price > 2 ? item.price * 0.9 : item.price
       const formattedPrice = `$${discountedPrice.toFixed(2)}`
       const isOnSale = item.price > 2
       return { ...item, discountedPrice, formattedPrice, isOnSale }
     })
+  }
+
+  // Clean, readable processing pipeline using helper functions
+  const processedItems = addPricingInfo(
+    sortItems(
+      filterInStockItems(
+        filterByCategory(items, filter)
+      ), 
+      sort
+    )
+  )
 
   return (
     <div className="space-y-4">
@@ -312,24 +338,36 @@ function MessyComponent() {
       </p>
 
       <div className="grid grid-cols-2 gap-4">
-        <select
-          value={filter}
-          onChange={e => setFilter(e.target.value)}
-          className="px-4 py-2 border rounded"
-        >
-          <option value="">All Categories</option>
-          <option value="Fruit">Fruit</option>
-          <option value="Vegetable">Vegetable</option>
-        </select>
+        <div>
+          <label htmlFor="category-filter" className="block text-sm font-medium text-gray-700 mb-2">
+            Filter by Category
+          </label>
+          <select
+            id="category-filter"
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+            className="px-4 py-2 border rounded w-full"
+          >
+            <option value="">All Categories</option>
+            <option value="Fruit">Fruit</option>
+            <option value="Vegetable">Vegetable</option>
+          </select>
+        </div>
 
-        <select
-          value={sort}
-          onChange={e => setSort(e.target.value)}
-          className="px-4 py-2 border rounded"
-        >
-          <option value="name">Sort by Name</option>
-          <option value="price">Sort by Price</option>
-        </select>
+        <div>
+          <label htmlFor="sort-order" className="block text-sm font-medium text-gray-700 mb-2">
+            Sort Order
+          </label>
+          <select
+            id="sort-order"
+            value={sort}
+            onChange={e => setSort(e.target.value)}
+            className="px-4 py-2 border rounded w-full"
+          >
+            <option value="name">Sort by Name</option>
+            <option value="price">Sort by Price</option>
+          </select>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
